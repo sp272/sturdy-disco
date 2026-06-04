@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>กระทบยอด Realtime</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#fff;--bg2:#f5f5f3;--bg3:#eeecea;
+  --text:#1a1a18;--text2:#6b6b67;--text3:#9b9b96;
+  --border:rgba(0,0,0,.1);--border2:rgba(0,0,0,.2);
+  --r:8px;--rl:12px;
+  --blue:#378ADD;--green:#1D9E75;--amber:#BA7517;--red:#E24B4A;
+  --green-bg:#E1F5EE;--green-t:#0F6E56;
+  --amber-bg:#FAEEDA;--amber-t:#854F0B;
+  --red-bg:#FCEBEB;--red-t:#A32D2D;
+  --blue-bg:#E6F1FB;--blue-t:#0C447C;
+  --gray-bg:#F1EFE8;--gray-t:#444441;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1c1c1a;--bg2:#252523;--bg3:#2e2e2b;
+  --text:#f0efe8;--text2:#a0a09a;--text3:#6b6b65;
+  --border:rgba(255,255,255,.1);--border2:rgba(255,255,255,.18);
+}}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg3);color:var(--text);font-size:14px;min-height:100vh;}
+#loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+.login-box{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--rl);padding:36px 32px;width:100%;max-width:400px;box-shadow:0 4px 24px rgba(0,0,0,.08);}
+.login-box h1{font-size:22px;font-weight:600;margin-bottom:4px;}
+.login-box p{font-size:13px;color:var(--text2);margin-bottom:24px;}
+.login-box label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;}
+.login-box input{width:100%;padding:10px 12px;font-size:14px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);margin-bottom:14px;outline:none;transition:border-color .15s;}
+.login-box input:focus{border-color:var(--blue);}
+.err{font-size:12px;color:var(--red-t);background:var(--red-bg);padding:8px 12px;border-radius:var(--r);margin-bottom:12px;display:none;}
+#mainPage{display:none;}
+.topbar{background:var(--bg);border-bottom:0.5px solid var(--border);padding:11px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
+.brand{font-size:16px;font-weight:600;flex:1;display:flex;align-items:center;gap:8px;}
+.top-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite;flex-shrink:0;}
+.live-dot.err{background:var(--red);animation:none;}
+.live-dot.pause{background:var(--amber);animation:none;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+.cbar{width:80px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+.cfill{height:3px;background:var(--blue);border-radius:2px;transition:width .3s linear;}
+.btn{padding:7px 14px;font-size:13px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:background .12s;}
+.btn:hover{background:var(--bg3);}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);}
+.btn-primary:hover{background:#185FA5;}
+.btn-sm{padding:5px 11px;font-size:12px;}
+.btn-red{background:var(--red-bg);color:var(--red-t);border-color:var(--red-t);}
+.page{max-width:1400px;margin:0 auto;padding:20px;}
+.setup-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--rl);padding:20px;margin-bottom:20px;}
+.setup-card h2{font-size:14px;font-weight:600;margin-bottom:14px;}
+.setup-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:end;}
+.setup-row label{font-size:11px;color:var(--text2);display:block;margin-bottom:4px;}
+.setup-row input,.setup-row select{width:100%;padding:8px 12px;font-size:13px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);outline:none;}
+.status-pill{font-size:12px;padding:6px 12px;border-radius:var(--r);display:inline-flex;align-items:center;gap:6px;margin-top:10px;}
+.s-ok{background:var(--green-bg);color:var(--green-t);}
+.s-err{background:var(--red-bg);color:var(--red-t);}
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+.metric{background:var(--bg2);border-radius:var(--r);padding:14px 16px;border-left:3px solid transparent;transition:border-color .3s;}
+.metric.ok{border-left-color:var(--green);}
+.metric.warn{border-left-color:var(--amber);}
+.metric.danger{border-left-color:var(--red);}
+.mlabel{font-size:11px;color:var(--text2);margin-bottom:5px;}
+.mval{font-size:20px;font-weight:600;}
+.msub{font-size:11px;color:var(--text3);margin-top:3px;}
+.card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--rl);padding:14px 16px;margin-bottom:14px;}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+.card-title{font-size:13px;font-weight:600;color:var(--text);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{font-size:11px;color:var(--text2);font-weight:500;padding:8px 10px;border-bottom:0.5px solid var(--border);background:var(--bg2);text-align:left;white-space:nowrap;cursor:pointer;user-select:none;}
+th:hover{background:var(--bg3);}
+td{padding:8px 10px;border-bottom:0.5px solid var(--border);color:var(--text);white-space:nowrap;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--bg2);}
+.num{text-align:right;font-variant-numeric:tabular-nums;}
+.badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;}
+.b-ok{background:var(--green-bg);color:var(--green-t);}
+.b-partial{background:var(--amber-bg);color:var(--amber-t);}
+.b-miss{background:var(--red-bg);color:var(--red-t);}
+.b-over{background:var(--blue-bg);color:var(--blue-t);}
+.b-wait{background:var(--gray-bg);color:var(--gray-t);}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.filter-row select,.filter-row input{font-size:12px;padding:5px 9px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);outline:none;}
+.cnt{font-size:11px;color:var(--text3);margin-left:auto;}
+.prog{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px;}
+.prog-fill{height:5px;border-radius:3px;}
+.feed-item{display:flex;gap:9px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
+.feed-item:last-child{border-bottom:none;}
+.feed-time{font-size:10px;color:var(--text3);width:44px;flex-shrink:0;padding-top:2px;}
+.feed-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.alert-item{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
+.alert-item:last-child{border-bottom:none;}
+.ab{font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;flex-shrink:0;margin-top:1px;}
+.ab-h{background:var(--red-bg);color:var(--red-t);}
+.ab-m{background:var(--amber-bg);color:var(--amber-t);}
+.ab-l{background:var(--blue-bg);color:var(--blue-t);}
+.leg{display:flex;gap:12px;flex-wrap:wrap;}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
+.leg-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.modal-bg{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.45);align-items:flex-start;justify-content:center;padding-top:60px;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--bg);border-radius:var(--rl);padding:24px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;border:0.5px solid var(--border);}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:16px;}
+.modal label{font-size:11px;color:var(--text2);display:block;margin-bottom:3px;}
+.modal input,.modal select{width:100%;padding:8px 10px;font-size:13px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);outline:none;margin-bottom:12px;}
+.modal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.detail-item label{font-size:11px;color:var(--text2);display:block;margin-bottom:2px;}
+.detail-item span{font-size:13px;font-weight:500;}
+.match-tag{font-size:10px;padding:1px 6px;border-radius:999px;background:var(--blue-bg);color:var(--blue-t);margin-left:4px;}
+/* Export columns checklist */
+.col-check{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+.col-check label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer;}
+.col-check input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--blue);}
+@media(max-width:900px){.metrics{grid-template-columns:repeat(3,1fr);}.g2{grid-template-columns:1fr;}.setup-row{grid-template-columns:1fr;}}
+@media(max-width:500px){.metrics{grid-template-columns:1fr 1fr;}}
+@keyframes rowIn{from{background:rgba(29,158,117,.15);}to{background:transparent;}}
+.row-new{animation:rowIn 1s ease;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage">
+  <div class="login-box">
+    <h1>💳 กระทบยอดรับชำระ</h1>
+    <p>Realtime Dashboard — Match ด้วย Invoice No.</p>
+    <div class="err" id="loginErr"></div>
+    <label>ชื่อผู้ใช้</label>
+    <input id="lu" placeholder="admin" onkeydown="if(event.key==='Enter')document.getElementById('lp').focus()">
+    <label>รหัสผ่าน</label>
+    <input id="lp" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    <small style="display:block;font-size:11px;color:var(--text3);margin-bottom:16px;">ค่าเริ่มต้น: admin / admin1234</small>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="doLogin()">เข้าสู่ระบบ</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="mainPage">
+  <div class="topbar">
+    <div class="brand"><span style="color:var(--blue);font-size:18px;">◈</span> กระทบยอด Realtime <span style="font-size:11px;background:var(--blue-bg);color:var(--blue-t);padding:2px 7px;border-radius:999px;">LIVE</span></div>
+    <div class="top-right">
+      <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);"><span class="live-dot" id="liveDot"></span><span id="liveStatus">กำลังเชื่อมต่อ...</span></div>
+      <div style="display:flex;align-items:center;gap:5px;"><div class="cbar"><div class="cfill" id="cFill" style="width:100%"></div></div><span style="font-size:11px;color:var(--text3);min-width:28px;" id="cTxt">—</span></div>
+      <button class="btn btn-sm" id="pauseBtn" onclick="togglePause()">⏸ หยุด</button>
+      <button class="btn btn-sm" onclick="fetchNow()">↻ ดึงข้อมูล</button>
+      <button class="btn btn-sm" onclick="openExport()">⬇ Export</button>
+      <button class="btn btn-sm" onclick="openSettings()">⚙ Settings</button>
+      <button class="btn btn-sm btn-red" onclick="doLogout()">ออก</button>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="setup-card">
+      <h2>🔗 เชื่อมต่อ Apps Script</h2>
+      <div class="setup-row">
+        <div><label>Apps Script URL</label><input id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
+        <div><label>ดึงข้อมูลทุก</label>
+          <select id="pollSel">
+            <option value="10">10 วินาที</option>
+            <option value="30" selected>30 วินาที</option>
+            <option value="60">1 นาที</option>
+            <option value="300">5 นาที</option>
+          </select>
+        </div>
+        <div style="padding-top:18px;"><button class="btn btn-primary" onclick="connect()">▶ เชื่อมต่อ</button></div>
+      </div>
+      <div id="connectMsg" style="display:none;"></div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="mlabel">ยอดขายรวม (฿)</div><div class="mval" id="m1" style="color:var(--blue);">—</div><div class="msub" id="m1s">—</div></div>
+      <div class="metric"><div class="mlabel">รับชำระแล้ว (฿)</div><div class="mval" id="m2">—</div><div class="msub" id="m2s">—</div></div>
+      <div class="metric"><div class="mlabel">ยังค้างชำระ (฿)</div><div class="mval" id="m3">—</div><div class="msub" id="m3s">—</div></div>
+      <div class="metric"><div class="mlabel">Match rate</div><div class="mval" id="m4">—</div><div class="msub" id="m4s">—</div></div>
+      <div class="metric"><div class="mlabel">การแจ้งเตือน</div><div class="mval" id="m5">0</div><div class="msub" id="m5s">ปกติ</div></div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">ยอดสะสม Realtime</span>
+          <div class="leg">
+            <div class="leg-item"><div class="leg-sq" style="background:var(--blue);"></div>ยอดขาย</div>
+            <div class="leg-item"><div class="leg-sq" style="background:var(--green);"></div>รับชำระ</div>
+          </div>
+        </div>
+        <div style="position:relative;height:190px;"><canvas id="liveChart" role="img" aria-label="กราฟยอดขายและรับชำระ"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">🔔 การแจ้งเตือน</span><span id="alertCnt" style="font-size:11px;color:var(--text3);">0 รายการ</span></div>
+        <div id="alertList" style="max-height:210px;overflow-y:auto;"><div style="text-align:center;padding:24px 0;font-size:13px;color:var(--text3);">ยังไม่มีการแจ้งเตือน ✓</div></div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">สรุปตาม Channel</span>
+          <div style="position:relative;">
+            <button class="btn btn-sm" onclick="toggleDropdown('chDrop')"
+              style="display:flex;align-items:center;gap:5px;">
+              เลือก Channel
+              <span id="chFilterCount" style="background:var(--blue);color:#fff;
+                font-size:10px;padding:1px 6px;border-radius:999px;"></span>
+              <span id="chDropArrow">▾</span>
+            </button>
+            <div id="chDrop" style="display:none;position:absolute;right:0;top:calc(100% + 4px);
+                 background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--r);
+                 box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:100;min-width:200px;padding:8px;">
+              <div style="display:flex;gap:6px;margin-bottom:8px;padding-bottom:8px;
+                           border-bottom:0.5px solid var(--border);">
+                <button class="btn btn-sm" style="flex:1;justify-content:center;"
+                  onclick="selectAllFilter('ch',true)">ทั้งหมด</button>
+                <button class="btn btn-sm" style="flex:1;justify-content:center;"
+                  onclick="selectAllFilter('ch',false)">ล้าง</button>
+              </div>
+              <div id="chFilterList" style="max-height:220px;overflow-y:auto;
+                   display:flex;flex-direction:column;gap:4px;">
+                <span style="font-size:12px;color:var(--text3);">รอโหลดข้อมูล...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table style="table-layout:auto;">
+            <thead><tr>
+              <th>Channel</th>
+              <th class="num">ยอดขาย (฿)</th>
+              <th class="num">รับแล้ว (฿)</th>
+              <th class="num">ค้าง (฿)</th>
+              <th style="min-width:90px;">Match %</th>
+            </tr></thead>
+            <tbody id="channelBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">สรุปตามช่องทางการชำระ</span>
+          <div style="position:relative;">
+            <button class="btn btn-sm" onclick="toggleDropdown('pmDrop')"
+              style="display:flex;align-items:center;gap:5px;">
+              เลือกช่องทาง
+              <span id="pmFilterCount" style="background:var(--blue);color:#fff;
+                font-size:10px;padding:1px 6px;border-radius:999px;"></span>
+              <span id="pmDropArrow">▾</span>
+            </button>
+            <div id="pmDrop" style="display:none;position:absolute;right:0;top:calc(100% + 4px);
+                 background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--r);
+                 box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:100;min-width:200px;padding:8px;">
+              <div style="display:flex;gap:6px;margin-bottom:8px;padding-bottom:8px;
+                           border-bottom:0.5px solid var(--border);">
+                <button class="btn btn-sm" style="flex:1;justify-content:center;"
+                  onclick="selectAllFilter('pm',true)">ทั้งหมด</button>
+                <button class="btn btn-sm" style="flex:1;justify-content:center;"
+                  onclick="selectAllFilter('pm',false)">ล้าง</button>
+              </div>
+              <div id="pmFilterList" style="max-height:220px;overflow-y:auto;
+                   display:flex;flex-direction:column;gap:4px;">
+                <span style="font-size:12px;color:var(--text3);">รอโหลดข้อมูล...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table style="table-layout:auto;">
+            <thead><tr>
+              <th>ช่องทางการชำระ</th>
+              <th class="num">จำนวน</th>
+              <th class="num">รับชำระ (฿)</th>
+            </tr></thead>
+            <tbody id="payMethodBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH CARD -->
+    <div class="card" id="searchCard">
+      <div class="card-hdr">
+        <span class="card-title">🔍 ค้นหารายการ</span>
+        <span style="font-size:11px;color:var(--text3);" id="searchResultCnt"></span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="position:relative;flex:1;min-width:220px;">
+          <input id="quickSearch"
+            placeholder="พิมพ์ Invoice No. หรือ Order ID..."
+            style="width:100%;padding:10px 14px 10px 38px;font-size:14px;
+                   border-radius:var(--r);border:1.5px solid var(--blue);
+                   background:var(--bg2);color:var(--text);outline:none;"
+            oninput="doQuickSearch()" onkeydown="if(event.key==='Escape')clearSearch()">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);
+                        font-size:16px;pointer-events:none;">🔍</span>
+        </div>
+        <button class="btn" onclick="clearSearch()">✕ ล้าง</button>
+      </div>
+
+      <!-- ผลลัพธ์ -->
+      <div id="searchResult" style="display:none;">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th style="min-width:120px;">Invoice No.</th>
+              <th style="min-width:100px;">Order ID</th>
+              <th style="min-width:90px;">Channel</th>
+              <th class="num" style="min-width:100px;">ยอดขาย (฿)</th>
+              <th class="num" style="min-width:100px;">รับแล้ว (฿)</th>
+              <th class="num" style="min-width:90px;">ผลต่าง (฿)</th>
+              <th style="min-width:110px;">ช่องทางการชำระ</th>
+              <th style="min-width:90px;">สถานะ</th>
+              <th style="width:50px;"></th>
+            </tr></thead>
+            <tbody id="searchBody"></tbody>
+          </table>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-top:8px;padding:4px 0;"
+             id="searchNote"></div>
+      </div>
+
+      <div id="searchEmpty" style="display:none;text-align:center;padding:20px 0;">
+        <div style="font-size:32px;margin-bottom:8px;">🔎</div>
+        <div style="font-size:14px;color:var(--text2);">ไม่พบข้อมูล</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px;" id="searchEmptyTxt"></div>
+      </div>
+
+      <div id="searchPlaceholder" style="text-align:center;padding:16px 0;color:var(--text3);font-size:13px;">
+        พิมพ์อย่างน้อย 3 ตัวอักษรเพื่อค้นหา
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">ผลการกระทบยอด <span class="match-tag">Match ด้วย Invoice No.</span></span>
+        <div class="filter-row">
+          <input id="srch" placeholder="Invoice / Order ID / Channel" style="width:200px;" oninput="pg=1;renderTable()">
+          <select id="stF" onchange="pg=1;renderTable()">
+            <option value="all">ทุกสถานะ</option>
+            <option value="ok">✓ กระทบแล้ว</option>
+            <option value="partial">! บางส่วน</option>
+            <option value="miss">✗ ค้างชำระ</option>
+            <option value="over">↑ เกินยอด</option>
+          </select>
+          <select id="chF" onchange="pg=1;renderTable()"><option value="all">ทุก Channel</option></select>
+          <select id="pmF" onchange="pg=1;renderTable()"><option value="all">ทุกช่องทางชำระ</option></select>
+          <span class="cnt" id="rowCnt"></span>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th onclick="srt('invoiceNo')" style="min-width:120px;">Invoice No.</th>
+            <th onclick="srt('orderId')" style="min-width:100px;">Order ID</th>
+            <th onclick="srt('channel')" style="min-width:90px;">Channel</th>
+            <th onclick="srt('source')" style="min-width:90px;">Source</th>
+            <th class="num" onclick="srt('endPrice')" style="min-width:100px;">ยอดขาย (฿)</th>
+            <th class="num" onclick="srt('received')" style="min-width:100px;">รับแล้ว (฿)</th>
+            <th class="num" onclick="srt('diff')" style="min-width:90px;">ผลต่าง (฿)</th>
+            <th onclick="srt('payMethod')" style="min-width:110px;">ช่องทางการชำระ</th>
+            <th onclick="srt('status')" style="min-width:90px;">สถานะ</th>
+            <th style="width:50px;"></th>
+          </tr></thead>
+          <tbody id="reconBody"></tbody>
+        </table>
+      </div>
+      <div id="pager" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--text2);"></div>
+    </div>
+
+    <div class="g2">
+      <div class="card" id="detailCard" style="display:none;">
+        <div class="card-hdr">
+          <span class="card-title" id="detailTitle">รายละเอียด</span>
+          <button class="btn btn-sm" onclick="document.getElementById('detailCard').style.display='none'">✕</button>
+        </div>
+        <div class="detail-grid" id="detailGrid"></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">กิจกรรมล่าสุด</span></div>
+        <div style="max-height:240px;overflow-y:auto;" id="actFeed"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>⚙ Settings</h2>
+    <div class="modal-row">
+      <div><label>ชื่อผู้ใช้</label><input id="cfgU"></div>
+      <div><label>รหัสผ่านใหม่</label><input id="cfgP" type="password"></div>
+      <div><label>แจ้งเตือนค้างชำระเกิน (฿)</label><input id="cfgMin" type="number"></div>
+      <div><label>แจ้งเตือนชำระขาด (฿)</label><input id="cfgDiff" type="number"></div>
+      <div><label>แจ้งเตือนรับเกิน (฿)</label><input id="cfgOver" type="number"></div>
+      <div><label>แถวต่อหน้า</label>
+        <select id="cfgPg">
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+      <button class="btn" onclick="closeSettings()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveSettings()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-bg" id="exportModal" onclick="if(event.target===this)closeExport()">
+  <div class="modal" style="max-width:520px;">
+    <h2>⬇ Export รายงาน</h2>
+
+    <!-- ตัวกรอง -->
+    <div class="modal-row" style="margin-bottom:14px;">
+      <div><label>สถานะ</label>
+        <select id="expSt">
+          <option value="all">ทั้งหมด</option>
+          <option value="miss">ค้างชำระ</option>
+          <option value="partial">บางส่วน</option>
+          <option value="ok">กระทบแล้ว</option>
+          <option value="over">เกินยอด</option>
+        </select>
+      </div>
+      <div><label>Channel</label><select id="expCh"><option value="all">ทั้งหมด</option></select></div>
+      <div><label>Source</label><select id="expSrc"><option value="all">ทั้งหมด</option></select></div>
+      <div></div>
+    </div>
+
+    <!-- เลือกช่องทางการชำระ หลายรายการพร้อมกันได้ -->
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:13px;font-weight:600;color:var(--text);">ช่องทางการชำระ</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-sm" onclick="selectAllPm(true)">เลือกทั้งหมด</button>
+          <button class="btn btn-sm" onclick="selectAllPm(false)">ล้างทั้งหมด</button>
+        </div>
+      </div>
+      <div id="expPmList" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;
+           max-height:160px;overflow-y:auto;padding:10px;background:var(--bg2);
+           border-radius:var(--r);border:0.5px solid var(--border);">
+        <span style="font-size:12px;color:var(--text3);">รอโหลดข้อมูล...</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;" id="expPmCount">เลือก 0 ช่องทาง</div>
+    </div>
+
+    <!-- เลือกคอลัมน์ที่ต้องการ Export -->
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">
+      เลือกคอลัมน์ที่ต้องการ Export
+    </div>
+    <div class="col-check">
+      <label><input type="checkbox" id="ec_inv" checked> Invoice No.</label>
+      <label><input type="checkbox" id="ec_oid" checked> Order ID (ขาย)</label>
+      <label><input type="checkbox" id="ec_poid" checked> Order ID (ชำระ)</label>
+      <label><input type="checkbox" id="ec_ch" checked> Channel</label>
+      <label><input type="checkbox" id="ec_src" checked> Source</label>
+      <label><input type="checkbox" id="ec_sale" checked> ยอดขาย (฿)</label>
+      <label><input type="checkbox" id="ec_recv" checked> รับชำระ (฿)</label>
+      <label><input type="checkbox" id="ec_diff" checked> ผลต่าง (฿)</label>
+      <label><input type="checkbox" id="ec_pm" checked> ช่องทางการชำระ</label>
+      <label><input type="checkbox" id="ec_st" checked> สถานะ</label>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="doExportCSV()">⬇ Export CSV</button>
+      <button class="btn" onclick="doPrint()">🖨 Print / PDF</button>
+      <button class="btn" onclick="closeExport()">ยกเลิก</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;">
+      💡 CSV รองรับภาษาไทย เปิดใน Excel ได้เลย
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k));}catch{return null;}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
+const SCRIPT_URL='';
+let cfg=LS.get('rcn_cfg')||{user:'admin',pass:'admin1234',minAlert:1000,diffAlert:500,overAlert:200,pgSize:20};
+let recon=[],alerts=[],actLog=[];
+let pollTimer=null,cTimer=null,paused=false,pollSec=30,cRemain=30;
+let chartObj=null,cLabels=[],cSale=[],cPay=[];
+let pg=1,sortCol='status',sortDir=1;
+const fmt=n=>Math.round(+n||0).toLocaleString('th-TH');
+const now=()=>new Date().toTimeString().slice(0,8);
+const sT=()=>{const d=new Date();return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');};
+const stLabel={ok:'กระทบแล้ว',partial:'บางส่วน',miss:'ค้างชำระ',over:'เกินยอด',wait:'รอ'};
+
+/* ── AUTH ── */
+function doLogin(){
+  const u=document.getElementById('lu').value.trim(),p=document.getElementById('lp').value,e=document.getElementById('loginErr');
+  if(u===cfg.user&&p===cfg.pass){document.getElementById('loginPage').style.display='none';document.getElementById('mainPage').style.display='block';LS.set('rcn_sess',Date.now());initMain();}
+  else{e.style.display='block';e.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';document.getElementById('lp').value='';}
+}
+function doLogout(){LS.set('rcn_sess',null);clearInterval(pollTimer);clearInterval(cTimer);document.getElementById('mainPage').style.display='none';document.getElementById('loginPage').style.display='flex';}
+(function(){const s=LS.get('rcn_sess');if(s&&Date.now()-s<8*3600*1000){document.getElementById('loginPage').style.display='none';document.getElementById('mainPage').style.display='block';setTimeout(initMain,80);}})();
+
+/* ── SETTINGS ── */
+function openSettings(){document.getElementById('cfgU').value=cfg.user;document.getElementById('cfgP').value='';document.getElementById('cfgMin').value=cfg.minAlert;document.getElementById('cfgDiff').value=cfg.diffAlert;document.getElementById('cfgOver').value=cfg.overAlert;document.getElementById('cfgPg').value=cfg.pgSize;document.getElementById('settingsModal').classList.add('open');}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('open');}
+function saveSettings(){const np=document.getElementById('cfgP').value;cfg.user=document.getElementById('cfgU').value||'admin';if(np)cfg.pass=np;cfg.minAlert=+document.getElementById('cfgMin').value||1000;cfg.diffAlert=+document.getElementById('cfgDiff').value||500;cfg.overAlert=+document.getElementById('cfgOver').value||200;cfg.pgSize=+document.getElementById('cfgPg').value||20;LS.set('rcn_cfg',cfg);closeSettings();addAct('บันทึก Settings แล้ว','#378ADD');}
+
+/* ── FETCH ── */
+async function fetchData(){
+  const url=document.getElementById('scriptUrl').value.trim()||SCRIPT_URL;
+  if(!url){setStatus('กรอก Apps Script URL แล้วกด เชื่อมต่อ','pause');return;}
+  setStatus('กำลังดึงข้อมูล...','ok');
+  try{
+    const res=await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const sales=data.sales||[],payments=data.payments||[];
+    if(data.errors&&data.errors.length>0) addAct('⚠ error '+data.errors.length+' ไฟล์','#BA7517');
+    buildRecon(sales,payments);
+    checkAlerts();
+    updateChart();
+    renderAll();
+    LS.set('rcn_url',url);
+    setStatus('อัปเดต '+now()+' — '+recon.length.toLocaleString()+' รายการ','ok');
+    const msg=document.getElementById('connectMsg');
+    msg.style.display='block';msg.className='status-pill s-ok';
+    msg.textContent='✓ เชื่อมต่อสำเร็จ — ยอดขาย '+sales.length.toLocaleString()+' | รับชำระ '+payments.length.toLocaleString()+' รายการ';
+  }catch(e){
+    setStatus('ดึงข้อมูลล้มเหลว: '+e.message,'err');addAct('⚠ '+e.message,'#E24B4A');
+    const msg=document.getElementById('connectMsg');msg.style.display='block';msg.className='status-pill s-err';msg.textContent='✗ '+e.message;
+  }
+}
+function connect(){
+  pollSec=+document.getElementById('pollSel').value||30;
+  clearInterval(pollTimer);clearInterval(cTimer);
+  fetchData();
+  pollTimer=setInterval(()=>{if(!paused)fetchData();},pollSec*1000);
+  cRemain=pollSec;
+  cTimer=setInterval(()=>{if(paused)return;cRemain--;const pct=Math.max(0,Math.round(cRemain/pollSec*100));document.getElementById('cFill').style.width=pct+'%';document.getElementById('cTxt').textContent=cRemain+'วิ';if(cRemain<=0)cRemain=pollSec;},1000);
+}
+function fetchNow(){cRemain=pollSec;fetchData();}
+function togglePause(){paused=!paused;const b=document.getElementById('pauseBtn');if(paused){b.textContent='▶ ดึงต่อ';setStatus('หยุดชั่วคราว','pause');}else{b.textContent='⏸ หยุด';fetchNow();}}
+function setStatus(t,s='ok'){const d=document.getElementById('liveDot');d.className='live-dot'+(s==='err'?' err':s==='pause'?' pause':'');document.getElementById('liveStatus').textContent=t;}
+
+/* ── RECONCILE ── */
+function buildRecon(sales,payments){
+  const payMap={};
+  payments.forEach(p=>{
+    const k=(p.invoiceNo||'').trim();
+    if(!k)return;
+    if(!payMap[k])payMap[k]={total:0,methods:[],orderIds:[]};
+    payMap[k].total+=p.amount||0;
+    const pm=(p.method||'').trim();if(pm&&!payMap[k].methods.includes(pm))payMap[k].methods.push(pm);
+    if(p.orderId&&!payMap[k].orderIds.includes(p.orderId))payMap[k].orderIds.push(p.orderId);
+  });
+  const prev=new Set(recon.map(r=>r.invoiceNo));
+  recon=sales.map(s=>{
+    const inv=(s.invoiceNo||'').trim();
+    const sale=s.endPrice||0;
+    const pay=payMap[inv]?.total||0;
+    const diff=pay-sale;
+    let status='miss';
+    if(sale===0&&pay===0)status='wait';
+    else if(pay===0)status='miss';
+    else if(Math.abs(diff)<1)status='ok';
+    else if(pay<sale)status='partial';
+    else status='over';
+    return{
+      invoiceNo:inv,
+      orderId:(s.orderId||'').trim(),
+      channel:(s.channel||'').trim(),
+      source:s.source||'',
+      endPrice:sale,received:pay,diff,status,
+      payMethod:(payMap[inv]?.methods||[]).map(m=>m.trim()).filter(Boolean).join(', '),
+      payOrderId:(payMap[inv]?.orderIds||[]).join(', '),
+    };
+  });
+  const newRows=recon.filter(r=>!prev.has(r.invoiceNo));
+  if(newRows.length>0)addAct('ข้อมูลใหม่ '+newRows.length+' รายการ','#378ADD');
+}
+
+/* ── ALERTS ── */
+function checkAlerts(){
+  const existing=new Set(alerts.map(a=>a.key));let nc=0;
+  recon.forEach(r=>{
+    if(r.status==='miss'&&r.endPrice>=cfg.minAlert&&!existing.has(r.invoiceNo+'_miss')){alerts.unshift({key:r.invoiceNo+'_miss',level:'h',msg:`${r.invoiceNo} [${r.channel||r.source}] ค้างชำระ ฿${fmt(r.endPrice)}`,t:now()});nc++;}
+    if(r.status==='partial'&&(r.endPrice-r.received)>=cfg.diffAlert&&!existing.has(r.invoiceNo+'_part')){alerts.unshift({key:r.invoiceNo+'_part',level:'m',msg:`${r.invoiceNo} ชำระขาด ฿${fmt(r.endPrice-r.received)}`,t:now()});nc++;}
+    if(r.status==='over'&&r.diff>=cfg.overAlert&&!existing.has(r.invoiceNo+'_over')){alerts.unshift({key:r.invoiceNo+'_over',level:'l',msg:`${r.invoiceNo} รับเกินยอด ฿${fmt(r.diff)}`,t:now()});nc++;}
+  });
+  if(nc>0)addAct('🔔 แจ้งเตือนใหม่ '+nc+' รายการ','#E24B4A');
+  if(alerts.length>300)alerts=alerts.slice(0,300);
+  renderAlerts();
+}
+
+/* ── RENDER ── */
+function renderAll(){renderMetrics();renderTable();buildChFilterList();buildPmFilterList();populateFilters();}
+
+function renderMetrics(){
+  const totS=recon.reduce((s,r)=>s+r.endPrice,0);
+  const totP=recon.reduce((s,r)=>s+r.received,0);
+  const ok=recon.filter(r=>r.status==='ok').length;
+  const missAmt=recon.filter(r=>r.status==='miss').reduce((s,r)=>s+r.endPrice,0);
+  const rate=recon.length?Math.round(ok/recon.length*100):0;
+  const set=(id,v,c,s,cls)=>{const el=document.getElementById(id);el.textContent=v;el.style.color=c;document.getElementById(id+'s').textContent=s;el.closest('.metric').className='metric '+(cls||'');};
+  set('m1',fmt(totS),'#378ADD',recon.length.toLocaleString()+' รายการ');
+  set('m2',fmt(totP),totP>=totS*0.8?'#1D9E75':'#BA7517',Math.round(totP/(totS||1)*100)+'% ของยอดขาย',totP>=totS*0.8?'ok':'warn');
+  set('m3',fmt(missAmt),missAmt>0?'#E24B4A':'#1D9E75',recon.filter(r=>r.status==='miss').length+' รายการ',missAmt>0?'danger':'ok');
+  set('m4',rate+'%',rate>=80?'#1D9E75':rate>=50?'#BA7517':'#E24B4A',ok+'/'+recon.length+' กระทบแล้ว',rate>=80?'ok':rate>=50?'warn':'danger');
+  const ac=alerts.length;
+  document.getElementById('m5').textContent=ac;document.getElementById('m5').style.color=ac>0?'#E24B4A':'#1D9E75';
+  document.getElementById('m5s').textContent=ac>0?alerts.filter(a=>a.level==='h').length+' ด่วน':'ปกติ';
+  document.getElementById('m5').closest('.metric').className='metric '+(ac>0?'danger':'ok');
+}
+
+function renderAlerts(){
+  const cnt=alerts.length;
+  document.getElementById('alertCnt').textContent=cnt+' รายการ';
+  document.getElementById('alertList').innerHTML=cnt===0?'<div style="text-align:center;padding:24px 0;font-size:13px;color:var(--text3);">ไม่มีการแจ้งเตือน ✓</div>':alerts.map(a=>`<div class="alert-item"><span class="ab ${a.level==='h'?'ab-h':a.level==='m'?'ab-m':'ab-l'}">${a.level==='h'?'ด่วน':a.level==='m'?'ตรวจสอบ':'สังเกต'}</span><div style="flex:1;"><div>${a.msg}</div><div style="font-size:10px;color:var(--text3);margin-top:2px;">${a.t}</div></div></div>`).join('');
+}
+
+function populateFilters(){
+  const chSel=document.getElementById('chF');
+  const pmSel=document.getElementById('pmF');
+  const curCh=chSel.value,curPm=pmSel.value;
+  const chs=[...new Set(recon.map(r=>r.channel).filter(Boolean))].sort();
+  const pms=[...new Set(recon.flatMap(r=>r.payMethod?r.payMethod.split(',').map(m=>m.trim()).filter(Boolean):[]))].sort();
+  const srcs=[...new Set(recon.map(r=>r.source).filter(Boolean))].sort();
+  chSel.innerHTML='<option value="all">ทุก Channel</option>'+chs.map(c=>`<option value="${c}"${c===curCh?' selected':''}>${c}</option>`).join('');
+  pmSel.innerHTML='<option value="all">ทุกช่องทางชำระ</option>'+pms.map(p=>`<option value="${p}"${p===curPm?' selected':''}>${p}</option>`).join('');
+  // Populate export dropdowns
+  document.getElementById('expCh').innerHTML='<option value="all">ทั้งหมด</option>'+chs.map(c=>`<option value="${c}">${c}</option>`).join('');
+  document.getElementById('expSrc').innerHTML='<option value="all">ทั้งหมด</option>'+srcs.map(s=>`<option value="${s}">${s}</option>`).join('');
+  // Populate payment method checkboxes
+  const pmList=document.getElementById('expPmList');
+  if(pmList){
+    pmList.innerHTML=pms.length===0
+      ?'<span style="font-size:12px;color:var(--text3);">ยังไม่มีข้อมูลช่องทางชำระ</span>'
+      :pms.map(p=>`
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;
+                       color:var(--text);cursor:pointer;padding:3px 0;">
+          <input type="checkbox" value="${p.trim()}" checked
+                 onchange="updatePmCount()"
+                 style="width:14px;height:14px;accent-color:var(--blue);">
+          ${p.trim()||'(ว่าง)'}
+        </label>`).join('');
+    updatePmCount();
+  }
+}
+
+function getFiltered(){
+  const q=(document.getElementById('srch').value||'').toLowerCase();
+  const sf=document.getElementById('stF').value;
+  const cf=document.getElementById('chF').value;
+  const pf=document.getElementById('pmF').value;
+  let r=[...recon];
+  if(sf!=='all')r=r.filter(x=>x.status===sf);
+  if(cf!=='all')r=r.filter(x=>x.channel===cf);
+  if(pf!=='all')r=r.filter(x=>x.payMethod.split(',').map(m=>m.trim()).includes(pf));
+  if(q)r=r.filter(x=>(x.invoiceNo+x.orderId+x.channel+x.source+x.payMethod).toLowerCase().includes(q));
+  const ord={miss:0,partial:1,over:2,ok:3,wait:4};
+  r.sort((a,b)=>{
+    const av=sortCol==='status'?ord[a.status]:(a[sortCol]||0);
+    const bv=sortCol==='status'?ord[b.status]:(b[sortCol]||0);
+    return typeof av==='number'?(av-bv)*sortDir:String(av).localeCompare(String(bv),'th')*sortDir;
+  });
+  return r;
+}
+function srt(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=col==='status'?1:-1;}pg=1;renderTable();}
+const stBadge=s=>({ok:'<span class="badge b-ok">✓ กระทบแล้ว</span>',partial:'<span class="badge b-partial">! บางส่วน</span>',miss:'<span class="badge b-miss">✗ ค้างชำระ</span>',over:'<span class="badge b-over">↑ เกินยอด</span>',wait:'<span class="badge b-wait">— รอ</span>'}[s]||'<span class="badge b-wait">—</span>');
+
+function renderTable(){
+  const rows=getFiltered(),PG=cfg.pgSize,total=rows.length,pages=Math.max(1,Math.ceil(total/PG));
+  if(pg>pages)pg=1;
+  const slice=rows.slice((pg-1)*PG,pg*PG);
+  document.getElementById('rowCnt').textContent=total.toLocaleString()+' รายการ';
+  document.getElementById('reconBody').innerHTML=slice.map((r,i)=>{
+    const dC=Math.abs(r.diff)<1?'var(--text3)':r.diff>0?'#378ADD':'#E24B4A';
+    const dS=Math.abs(r.diff)<1?'—':(r.diff>0?'+':'')+fmt(r.diff);
+    return`<tr class="${i<3&&pg===1?'row-new':''}">
+      <td style="font-family:monospace;font-size:11px;" title="${r.invoiceNo}">${r.invoiceNo||'—'}</td>
+      <td style="font-family:monospace;font-size:11px;" title="${r.orderId}">${r.orderId||'—'}</td>
+      <td style="font-size:11px;font-weight:500;" title="${r.channel}">${r.channel||'—'}</td>
+      <td style="font-size:11px;" title="${r.source}">${r.source||'—'}</td>
+      <td class="num">฿${fmt(r.endPrice)}</td>
+      <td class="num">${r.received>0?'฿'+fmt(r.received):'—'}</td>
+      <td class="num" style="color:${dC};font-weight:600;">${dS}</td>
+      <td style="font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;" title="${r.payMethod}">${r.payMethod||'—'}</td>
+      <td>${stBadge(r.status)}</td>
+      <td><button class="btn btn-sm" onclick="showDetail(${(pg-1)*PG+i})">⋯</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('pager').innerHTML=total>PG?`<span>${(pg-1)*PG+1}–${Math.min(pg*PG,total)} จาก ${total.toLocaleString()}</span><button class="btn btn-sm" onclick="if(pg>1){pg--;renderTable();}" ${pg<=1?'disabled':''}>‹</button><span style="font-size:12px;">${pg}/${pages}</span><button class="btn btn-sm" onclick="if(pg<${pages}){pg++;renderTable();}" ${pg>=pages?'disabled':''}>›</button>`:'';
+}
+
+function showDetail(idx){
+  const r=getFiltered()[idx];if(!r)return;
+  document.getElementById('detailTitle').textContent='รายละเอียด: '+r.invoiceNo;
+  document.getElementById('detailGrid').innerHTML=[
+    ['Invoice No.',r.invoiceNo],['Order ID (ขาย)',r.orderId],['Order ID (ชำระ)',r.payOrderId||'—'],
+    ['Channel',r.channel||'—'],['Source',r.source],['สถานะ',stLabel[r.status]||r.status],
+    ['ยอดขาย','฿'+fmt(r.endPrice)],['รับชำระแล้ว','฿'+fmt(r.received)],['ผลต่าง',(r.diff>=0?'+':'')+fmt(r.diff)],
+    ['ช่องทางการชำระ',r.payMethod||'—'],['',''],['',''],
+  ].map(([l,v])=>`<div class="detail-item"><label>${l}</label><span>${v||'—'}</span></div>`).join('');
+  const dc=document.getElementById('detailCard');dc.style.display='block';dc.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function buildChFilterList(){
+  const map={};
+  recon.forEach(r=>{const k=r.channel||'ไม่ระบุ';if(!map[k])map[k]=0;map[k]++;});
+  const keys=Object.keys(map).sort();
+  const prev=new Set([...document.querySelectorAll('#chFilterList input:checked')].map(i=>i.value));
+  const isFirst=document.getElementById('chFilterList').innerHTML.includes('รอโหลด');
+  document.getElementById('chFilterList').innerHTML=keys.length===0
+    ?'<span style="font-size:12px;color:var(--text3);">ยังไม่มีข้อมูล</span>'
+    :keys.map(k=>`
+      <label style="display:flex;align-items:center;justify-content:space-between;
+                     gap:8px;font-size:13px;color:var(--text);cursor:pointer;
+                     padding:6px 8px;border-radius:var(--r);"
+             onmouseover="this.style.background='var(--bg2)'"
+             onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <input type="checkbox" value="${k}" ${isFirst||prev.has(k)?'checked':''}
+                 onchange="updateFilterCount('ch');renderChannel()"
+                 style="width:14px;height:14px;accent-color:var(--blue);flex-shrink:0;">
+          <span>${k}</span>
+        </div>
+        <span style="font-size:11px;color:var(--text3);flex-shrink:0;">${map[k]} รายการ</span>
+      </label>`).join('');
+  updateFilterCount('ch');
+}
+
+function renderChannel(){
+  const checked=new Set([...document.querySelectorAll('#chFilterList input:checked')].map(i=>i.value));
+  const map={};
+  recon.forEach(r=>{
+    const k=r.channel||'ไม่ระบุ';
+    if(!map[k])map[k]={sale:0,pay:0,ok:0,tot:0};
+    map[k].sale+=r.endPrice;map[k].pay+=r.received;
+    if(r.status==='ok')map[k].ok++;map[k].tot++;
+  });
+  let entries=Object.entries(map).sort((a,b)=>b[1].sale-a[1].sale);
+  if(checked.size>0) entries=entries.filter(([k])=>checked.has(k));
+
+  document.getElementById('channelBody').innerHTML=entries.length===0
+    ?`<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text3);font-size:12px;">ไม่มีข้อมูล — กด "เลือกทั้งหมด" เพื่อแสดง</td></tr>`
+    :entries.map(([k,v])=>{
+        const miss=v.sale-v.pay,rate=v.tot?Math.round(v.ok/v.tot*100):0,rc=rate>=80?'#1D9E75':rate>=50?'#BA7517':'#E24B4A';
+        return`<tr>
+          <td style="font-size:12px;font-weight:500;">${k}</td>
+          <td class="num" style="font-size:12px;">฿${fmt(v.sale)}</td>
+          <td class="num" style="font-size:12px;color:var(--green);">฿${fmt(v.pay)}</td>
+          <td class="num" style="font-size:12px;color:${miss>0?'#E24B4A':'var(--text3)'};">฿${fmt(miss)}</td>
+          <td><div style="display:flex;align-items:center;gap:5px;">
+            <div class="prog" style="flex:1;"><div class="prog-fill" style="width:${rate}%;background:${rc};"></div></div>
+            <span style="font-size:11px;color:${rc};min-width:32px;">${rate}%</span>
+          </div></td>
+        </tr>`;
+      }).join('');
+}
+
+function buildPmFilterList(){
+  const map={};
+  recon.forEach(r=>{
+    if(!r.payMethod)return;
+    r.payMethod.split(',').forEach(m=>{const k=m.trim();if(k){if(!map[k])map[k]=0;map[k]++;}});
+  });
+  const keys=Object.keys(map).sort();
+  const prev=new Set([...document.querySelectorAll('#pmFilterList input:checked')].map(i=>i.value));
+  const isFirst=document.getElementById('pmFilterList').innerHTML.includes('รอโหลด');
+  document.getElementById('pmFilterList').innerHTML=keys.length===0
+    ?'<span style="font-size:12px;color:var(--text3);">ยังไม่มีข้อมูล</span>'
+    :keys.map(k=>`
+      <label style="display:flex;align-items:center;justify-content:space-between;
+                     gap:8px;font-size:13px;color:var(--text);cursor:pointer;
+                     padding:6px 8px;border-radius:var(--r);"
+             onmouseover="this.style.background='var(--bg2)'"
+             onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <input type="checkbox" value="${k}" ${isFirst||prev.has(k)?'checked':''}
+                 onchange="updateFilterCount('pm');renderPayMethod()"
+                 style="width:14px;height:14px;accent-color:var(--blue);flex-shrink:0;">
+          <span>${k}</span>
+        </div>
+        <span style="font-size:11px;color:var(--text3);flex-shrink:0;">${map[k]} รายการ</span>
+      </label>`).join('');
+  updateFilterCount('pm');
+}
+
+function renderPayMethod(){
+  const checked=new Set([...document.querySelectorAll('#pmFilterList input:checked')].map(i=>i.value));
+  const map={};
+  recon.forEach(r=>{
+    if(!r.payMethod)return;
+    r.payMethod.split(',').forEach(m=>{
+      const k=m.trim();if(!k)return;
+      if(!map[k])map[k]={cnt:0,amt:0};
+      map[k].cnt++;map[k].amt+=r.received;
+    });
+  });
+  let entries=Object.entries(map).sort((a,b)=>b[1].amt-a[1].amt);
+  if(checked.size>0) entries=entries.filter(([k])=>checked.has(k));
+
+  document.getElementById('payMethodBody').innerHTML=entries.length===0
+    ?`<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text3);font-size:12px;">ไม่มีข้อมูล — กด "เลือกทั้งหมด" เพื่อแสดง</td></tr>`
+    :entries.map(([k,v])=>`<tr>
+        <td style="font-size:12px;">${k}</td>
+        <td class="num" style="font-size:12px;">${v.cnt.toLocaleString()}</td>
+        <td class="num" style="font-size:12px;color:var(--green);">฿${fmt(v.amt)}</td>
+      </tr>`).join('');
+}
+
+/* ── CHART ── */
+function updateChart(){
+  const tS=recon.reduce((s,r)=>s+r.endPrice,0),tP=recon.reduce((s,r)=>s+r.received,0),t=sT();
+  if(cLabels[cLabels.length-1]===t){cSale[cSale.length-1]=tS;cPay[cPay.length-1]=tP;}
+  else{cLabels.push(t);cSale.push(tS);cPay.push(tP);if(cLabels.length>24){cLabels.shift();cSale.shift();cPay.shift();}}
+  if(chartObj){chartObj.data.labels=[...cLabels];chartObj.data.datasets[0].data=[...cSale];chartObj.data.datasets[1].data=[...cPay];chartObj.update('none');}
+}
+function initChart(){
+  cLabels.push(sT());cSale.push(0);cPay.push(0);
+  chartObj=new Chart(document.getElementById('liveChart'),{type:'line',data:{labels:[...cLabels],datasets:[{label:'ยอดขาย',data:[...cSale],borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,.07)',fill:true,tension:.4,pointRadius:3,borderWidth:2},{label:'รับชำระ',data:[...cPay],borderColor:'#1D9E75',backgroundColor:'transparent',fill:false,tension:.4,pointRadius:3,borderWidth:2,borderDash:[5,3]}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:ctx=>`${ctx.dataset.label}: ฿${fmt(ctx.raw)}`}}},scales:{x:{grid:{color:'rgba(128,128,128,.08)'},ticks:{font:{size:10},maxTicksLimit:8}},y:{grid:{color:'rgba(128,128,128,.08)'},ticks:{font:{size:10},callback:v=>`฿${v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'k':v}`}}}}});
+}
+
+function addAct(msg,color='#888780'){actLog.unshift({t:now(),msg,color});if(actLog.length>60)actLog.pop();document.getElementById('actFeed').innerHTML=actLog.map(a=>`<div class="feed-item"><span class="feed-time">${a.t.slice(0,5)}</span><span class="feed-dot" style="background:${a.color};"></span><span>${a.msg}</span></div>`).join('');}
+
+/* ── EXPORT ── */
+function openExport(){
+  document.getElementById('exportModal').classList.add('open');
+  setTimeout(updatePmCount,50);
+}
+function closeExport(){document.getElementById('exportModal').classList.remove('open');}
+
+function getSelectedPms(){
+  return [...document.querySelectorAll('#expPmList input[type=checkbox]:checked')]
+    .map(cb=>cb.value);
+}
+function selectAllPm(val){
+  document.querySelectorAll('#expPmList input[type=checkbox]')
+    .forEach(cb=>cb.checked=val);
+  updatePmCount();
+}
+function updatePmCount(){
+  const n=getSelectedPms().length;
+  const total=document.querySelectorAll('#expPmList input[type=checkbox]').length;
+  document.getElementById('expPmCount').textContent=
+    n===0?'ไม่ได้เลือก — จะดึงทุกช่องทาง':
+    n===total?`เลือกทั้งหมด ${total} ช่องทาง`:
+    `เลือก ${n} จาก ${total} ช่องทาง`;
+}
+function getExportRows(){
+  const sf=document.getElementById('expSt').value;
+  const cf=document.getElementById('expCh').value;
+  const sc=document.getElementById('expSrc').value;
+  const selPms=getSelectedPms();
+  let r=[...recon];
+  if(sf!=='all')r=r.filter(x=>x.status===sf);
+  if(cf!=='all')r=r.filter(x=>x.channel===cf);
+  if(sc!=='all')r=r.filter(x=>x.source===sc);
+  // ถ้าเลือก checkbox อย่างน้อย 1 ตัว ให้กรอง — ถ้าไม่เลือกเลย = ดึงทั้งหมด
+  if(selPms.length>0){
+    r=r.filter(x=>{
+      if(!x.payMethod) return false;
+      const rowPms=x.payMethod.split(',').map(m=>m.trim().toLowerCase()).filter(Boolean);
+      return selPms.some(p=>rowPms.includes(p.trim().toLowerCase()));
+    });
+  }
+  return r;
+}
+
+// คอลัมน์ทั้งหมดที่รองรับ Export
+const ALL_COLS=[
+  {id:'ec_inv',  key:'invoiceNo',  label:'Invoice No.'},
+  {id:'ec_oid',  key:'orderId',    label:'Order ID (ขาย)'},
+  {id:'ec_poid', key:'payOrderId', label:'Order ID (ชำระ)'},
+  {id:'ec_ch',   key:'channel',    label:'Channel'},
+  {id:'ec_src',  key:'source',     label:'Source'},
+  {id:'ec_sale', key:'endPrice',   label:'ยอดขาย (฿)'},
+  {id:'ec_recv', key:'received',   label:'รับชำระ (฿)'},
+  {id:'ec_diff', key:'diff',       label:'ผลต่าง (฿)'},
+  {id:'ec_pm',   key:'payMethod',  label:'ช่องทางการชำระ'},
+  {id:'ec_st',   key:'status',     label:'สถานะ'},
+];
+
+function getSelectedCols(){
+  return ALL_COLS.filter(c=>document.getElementById(c.id)?.checked);
+}
+
+function doExportCSV(){
+  const rows=getExportRows();
+  const cols=getSelectedCols();
+  if(cols.length===0){alert('กรุณาเลือกอย่างน้อย 1 คอลัมน์');return;}
+
+  const bom='\uFEFF';
+  const header=cols.map(c=>c.label).join(',');
+  const csv=rows.map(r=>
+    cols.map(c=>{
+      let v=r[c.key];
+      if(c.key==='status') v=stLabel[v]||v;
+      return `"${String(v===undefined||v===null?'':v).replace(/"/g,'""')}"`;
+    }).join(',')
+  );
+
+  const blob=new Blob([bom+header+'\n'+csv.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`กระทบยอด_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  closeExport();
+  addAct(`Export CSV ${rows.length.toLocaleString()} รายการ (${cols.length} คอลัมน์)`,'#1D9E75');
+}
+
+function doPrint(){
+  const rows=getExportRows();
+  const cols=getSelectedCols();
+  const tS=rows.reduce((s,x)=>s+x.endPrice,0),tP=rows.reduce((s,x)=>s+x.received,0);
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>กระทบยอด</title>
+  <style>body{font-family:sans-serif;font-size:11px;padding:20px;}
+  h1{font-size:15px;margin-bottom:4px;}.sum{display:flex;gap:20px;padding:10px;background:#f5f5f5;border-radius:6px;margin-bottom:14px;}
+  .sv{font-size:16px;font-weight:bold;}table{width:100%;border-collapse:collapse;}
+  th{background:#eee;padding:5px 7px;text-align:left;border:0.5px solid #ddd;font-size:10px;}
+  td{padding:5px 7px;border:0.5px solid #ddd;}@media print{.np{display:none;}}</style>
+  </head><body>
+  <h1>รายงานกระทบยอดรับชำระ</h1>
+  <p style="color:#666;margin-bottom:12px;">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</p>
+  <div class="sum">
+    <div><div>ยอดขาย</div><div class="sv">฿${fmt(tS)}</div></div>
+    <div><div>รับชำระ</div><div class="sv">฿${fmt(tP)}</div></div>
+    <div><div>ผลต่าง</div><div class="sv" style="color:${tP>=tS?'green':'red'};">฿${fmt(tP-tS)}</div></div>
+    <div><div>รายการ</div><div class="sv">${rows.length.toLocaleString()}</div></div>
+  </div>
+  <table><thead><tr>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>
+  <tbody>${rows.map(r=>`<tr>${cols.map(c=>{
+    let v=r[c.key];
+    if(c.key==='status')v=stLabel[v]||v;
+    if(c.key==='endPrice'||c.key==='received')v=fmt(v);
+    if(c.key==='diff')v=(+v>=0?'+':'')+fmt(v);
+    return`<td>${v===undefined||v===null?'—':v}</td>`;
+  }).join('')}</tr>`).join('')}</tbody></table>
+  <div class="np" style="margin-top:14px;">
+    <button onclick="window.print()">🖨 พิมพ์</button>
+    <button onclick="window.close()" style="margin-left:8px;">ปิด</button>
+  </div></body></html>`);
+  w.document.close();closeExport();
+}
+
+/* ── DROPDOWN HELPERS ── */
+function toggleDropdown(id){
+  const drop=document.getElementById(id);
+  const isOpen=drop.style.display==='block';
+  // Close all dropdowns first
+  ['chDrop','pmDrop'].forEach(d=>{
+    document.getElementById(d).style.display='none';
+  });
+  if(!isOpen){
+    drop.style.display='block';
+    setTimeout(()=>document.addEventListener('click',closeAllDropdowns,{once:true}),10);
+  }
+}
+function closeAllDropdowns(e){
+  ['chDrop','pmDrop'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&!el.contains(e?.target)) el.style.display='none';
+  });
+}
+
+/* ── FILTER HELPERS ── */
+function selectAllFilter(type, val){
+  const id=type==='ch'?'chFilterList':'pmFilterList';
+  document.querySelectorAll(`#${id} input[type=checkbox]`).forEach(cb=>cb.checked=val);
+  updateFilterCount(type);
+  if(type==='ch') renderChannel();
+  else renderPayMethod();
+}
+function updateFilterCount(type){
+  const id=type==='ch'?'chFilterList':'pmFilterList';
+  const cntId=type==='ch'?'chFilterCount':'pmFilterCount';
+  const total=document.querySelectorAll(`#${id} input`).length;
+  const checked=document.querySelectorAll(`#${id} input:checked`).length;
+  const el=document.getElementById(cntId);
+  if(el){
+    if(checked===0||checked===total){
+      el.style.display='none';
+    } else {
+      el.style.display='inline';
+      el.textContent=checked;
+    }
+  }
+}
+
+/* ── QUICK SEARCH ── */
+function doQuickSearch(){
+  const q=(document.getElementById('quickSearch').value||'').trim();
+  const result=document.getElementById('searchResult');
+  const empty=document.getElementById('searchEmpty');
+  const placeholder=document.getElementById('searchPlaceholder');
+  const cntEl=document.getElementById('searchResultCnt');
+
+  if(q.length<3){
+    result.style.display='none';
+    empty.style.display='none';
+    placeholder.style.display='block';
+    cntEl.textContent='';
+    return;
+  }
+
+  const ql=q.toLowerCase();
+  const found=recon.filter(r=>
+    (r.invoiceNo||'').toLowerCase().includes(ql)||
+    (r.orderId||'').toLowerCase().includes(ql)||
+    (r.payOrderId||'').toLowerCase().includes(ql)
+  );
+
+  placeholder.style.display='none';
+
+  if(found.length===0){
+    result.style.display='none';
+    empty.style.display='block';
+    document.getElementById('searchEmptyTxt').textContent=
+      `ไม่พบ "${q}" ในทั้ง Invoice No. และ Order ID`;
+    cntEl.textContent='ไม่พบข้อมูล';
+    return;
+  }
+
+  empty.style.display='none';
+  result.style.display='block';
+  cntEl.textContent=`พบ ${found.length} รายการ`;
+
+  document.getElementById('searchBody').innerHTML=found.map((r,i)=>{
+    const dC=Math.abs(r.diff)<1?'var(--text3)':r.diff>0?'#378ADD':'#E24B4A';
+    const dS=Math.abs(r.diff)<1?'—':(r.diff>0?'+':'')+fmt(r.diff);
+
+    // Highlight คำที่ค้นหา
+    function hl(text){
+      if(!text) return '—';
+      const idx=text.toLowerCase().indexOf(ql);
+      if(idx<0) return text;
+      return text.slice(0,idx)+
+        `<mark style="background:#FFF176;color:#1a1a18;border-radius:2px;padding:0 1px;">`+
+        text.slice(idx,idx+q.length)+`</mark>`+
+        text.slice(idx+q.length);
+    }
+
+    return`<tr>
+      <td style="font-family:monospace;font-size:11px;">${hl(r.invoiceNo)}</td>
+      <td style="font-family:monospace;font-size:11px;">${hl(r.orderId)}</td>
+      <td style="font-size:11px;font-weight:500;">${r.channel||'—'}</td>
+      <td class="num">฿${fmt(r.endPrice)}</td>
+      <td class="num">${r.received>0?'฿'+fmt(r.received):'—'}</td>
+      <td class="num" style="color:${dC};font-weight:600;">${dS}</td>
+      <td style="font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;"
+          title="${r.payMethod}">${r.payMethod||'—'}</td>
+      <td>${stBadge(r.status)}</td>
+      <td><button class="btn btn-sm" onclick="showSearchDetail(${i})">⋯</button></td>
+    </tr>`;
+  }).join('');
+
+  // Store found for detail popup
+  window._searchFound=found;
+
+  document.getElementById('searchNote').textContent=
+    found.length>=50?`แสดง ${found.length} รายการแรก — พิมพ์ให้ละเอียดขึ้นเพื่อจำกัดผล`:'';
+}
+
+function showSearchDetail(idx){
+  const r=window._searchFound?.[idx];if(!r)return;
+  document.getElementById('detailTitle').textContent='รายละเอียด: '+(r.invoiceNo||r.orderId);
+  document.getElementById('detailGrid').innerHTML=[
+    ['Invoice No.',r.invoiceNo],['Order ID (ขาย)',r.orderId],['Order ID (ชำระ)',r.payOrderId||'—'],
+    ['Channel',r.channel||'—'],['Source',r.source],['สถานะ',stLabel[r.status]||r.status],
+    ['ยอดขาย','฿'+fmt(r.endPrice)],['รับชำระแล้ว','฿'+fmt(r.received)],['ผลต่าง',(r.diff>=0?'+':'')+fmt(r.diff)],
+    ['ช่องทางการชำระ',r.payMethod||'—'],['',''],['',''],
+  ].map(([l,v])=>`<div class="detail-item"><label>${l}</label><span>${v||'—'}</span></div>`).join('');
+  const dc=document.getElementById('detailCard');
+  dc.style.display='block';
+  dc.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function clearSearch(){
+  document.getElementById('quickSearch').value='';
+  doQuickSearch();
+  document.getElementById('quickSearch').focus();
+}
+
+/* ── INIT ── */
+function initMain(){
+  initChart();addAct('ระบบพร้อมใช้งาน','#378ADD');
+  const saved=LS.get('rcn_url')||SCRIPT_URL;
+  document.getElementById('scriptUrl').value=saved;
+  if(saved)setTimeout(connect,300);
+  else setStatus('กรอก Apps Script URL แล้วกด เชื่อมต่อ','pause');
+}
+document.getElementById('lu').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('lp').focus();});
+</script>
+</body>
+</html>
