@@ -406,11 +406,9 @@ function onSrch(){
 async function doSrch(q){
   srchHint.innerHTML='<span class="spin"></span> กำลังค้นหา...';
   try{
-    // คนหาจาก Supabase - เรว ไมม Cold Start
-    // สร้าง URL ค้นหา Supabase แบบถูกต้อง
-    const ql=q.replace(/[%]/g,'%25').replace(/[+]/g,'%2B');
-    const filter='name.ilike.%25'+encodeURIComponent(ql)+'%25,phone1.ilike.%25'+encodeURIComponent(ql)+'%25,phone2.ilike.%25'+encodeURIComponent(ql)+'%25,order_id.ilike.%25'+encodeURIComponent(ql)+'%25,invoice_no.ilike.%25'+encodeURIComponent(ql)+'%25';
-    const url=SUPA_URL+'/rest/v1/customers?select=*&limit=100&or=('+filter+')';
+    // ค้นหาจาก Supabase
+    const enc=encodeURIComponent('%'+q+'%');
+    const url=SUPA_URL+'/rest/v1/customers?select=*&limit=100&or=(name.ilike.'+enc+',phone1.ilike.'+enc+',phone2.ilike.'+enc+',order_id.ilike.'+enc+',invoice_no.ilike.'+enc+')';
     const res=await fetch(url,{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const rows=await res.json();
